@@ -621,43 +621,34 @@ to comment to the line 6453"
     (cons (line-number-at-pos) (current-column)))))
 
 ;;;###autoload
-(defun evilnc-comment-or-uncomment-lines (&optional num)
-  "Comment or uncomment NUM lines.  NUM could be negative.
-
-Case 1: If no region selected, comment/uncomment on current line.
-If NUM>1, comment/uncomment extra N-1 lines from next line.
-
-Case 2: Selected region is expanded to make it contain whole lines.
-Then we comment/uncomment the expanded region.  NUM is ignored.
-
-Case 3: If a region inside of ONE line is selected,
-we comment/uncomment that region.
-CORRECT comment syntax will be used for C++/Java/Javascript."
+(defun evilnc-comment-or-uncomment-lines (&optional n)
+  "Comment or uncomment N lines, or the region if active.
+If region is active, comment/uncomment full lines covering the region.
+If no region is active, operate on N lines starting from current line.
+N can be negative to operate backward."
   (interactive "p")
-  (let* ((orig-pos (evilnc-guess-position-at-point)))
-    ;; donot move the cursor
-    ;; support negative number
-    (cond
-     ((and (= 1 num) (string-match "^[ \t]*$" (evilnc-sdk-cur-line)))
-      ;; comment on current empty line
-      (comment-dwim nil))
-     (t
-      (save-excursion
-        (when (< num 0)
-          (evilnc--forward-line (1+ num))
-          (setq num (- 0 num)))
-        (evilnc--operation-on-lines-or-region
-         (lambda (b e)
-           (evilnc--fix-buggy-major-modes)
-           ;; when comment in evil visual state, the cursor may be rogue
-           (when (evilnc-visual-line-p) (evil-normal-state))
-           (evilnc-comment-or-uncomment-region b e))
-         num))
-
-      (evilnc--goto-line (car orig-pos))
-      ;; make sure we stay on original line
-      (goto-char (min (+ (line-beginning-position) (cdr orig-pos))
-                     (1- (line-end-position))))))))
+  (let ((orig-point (point)))
+    (if (use-region-p)
+        ;; Case 1: Region is active
+        (let ((beg (save-excursion
+                     (goto-char (region-beginning))
+                     (line-beginning-position)))
+              (end (save-excursion
+                     (goto-char (region-end))
+                     (line-end-position))))
+          (comment-or-uncomment-region beg end))
+      ;; Case 2: No region - comment N lines (backward if N < 0)
+      (when (and (eq last-command 'comment-line-backward)
+                 (natnump n))
+        (setq n (- n)))
+      (let ((range (list (line-beginning-position)
+                         (save-excursion
+                           (goto-char (line-end-position n))))))
+        (comment-or-uncomment-region
+         (apply #'min range)
+         (apply #'max range))))
+    ;; Restore cursor position
+    (goto-char orig-point)))
 
 ;;;###autoload
 (defun evilnc-copy-and-comment-lines (&optional num)
