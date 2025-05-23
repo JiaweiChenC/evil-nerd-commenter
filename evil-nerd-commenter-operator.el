@@ -141,42 +141,26 @@ Or expand the region to contain whole lines."
 ;; }}
 
 (evil-define-operator evilnc-comment-operator (start end type)
-  "Comments text from START to END with TYPE."
+  "Comment or uncomment using DWIM logic."
   (interactive "<R>")
-  (let ((win-start (window-start))) ;; Save scroll position
+  (let ((region-active (not (eq start end))))
     (cond
+     ;; Visual block (C-v): apply on each line in the block
      ((eq type 'block)
-      (let* ((newpos (evilnc-expand-to-whole-comment-or-line start end)))
-        (evil-apply-on-block #'evilnc-comment-or-uncomment-region
-                             (car newpos)
-                             (cdr newpos)
-                             nil)))
+      (evil-apply-on-block
+       (lambda (s e)
+         (comment-or-uncomment-region s e))
+       start end nil))
 
-     ((and (eq type 'line)
-           (= end (point-max))
-           (or (= start end)
-               (/= (char-before end) ?\n))
-           (/= start (point-min))
-           (=  (char-before start) ?\n))
-      (evilnc-comment-or-uncomment-region (1- start) end))
+     ;; Visual line or char: treat as a region if not empty
+     (region-active
+      (comment-or-uncomment-region start end))
 
-     ((eq type 'line)
-      (evilnc-comment-or-uncomment-region start
-                                          (save-excursion
-                                            (goto-char (1- end))
-                                            (line-end-position))))
-
+     ;; No region (point on line): comment the line
      (t
-      (when (and start end)
-        (let* ((newpos (evilnc-expand-to-whole-comment-or-line start end)))
-          (evilnc-comment-or-uncomment-region (car newpos) (cdr newpos))))))
-
-    ;; Restore window scroll position
-    (set-window-start (selected-window) win-start)
-
-    ;; place cursor at beginning of line for line type
-    (if (and (called-interactively-p 'any) (eq type 'line))
-        (evil-first-non-blank))))
+      (save-excursion
+        (goto-char start)
+        (comment-line 1))))))  ;; or use (comment-dwim nil)
 
 (defun evilnc-comment-or-uncomment-region-then-action (start end commenter &optional action)
   "Comment/uncomment between START and END using COMMENTER, then take ACTION."
