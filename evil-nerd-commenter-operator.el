@@ -143,37 +143,40 @@ Or expand the region to contain whole lines."
 (evil-define-operator evilnc-comment-operator (start end type)
   "Comments text from START to END with TYPE."
   (interactive "<R>")
-  (cond
-   ((eq type 'block)
-    (let* ((newpos (evilnc-expand-to-whole-comment-or-line start end) ))
-      (evil-apply-on-block #'evilnc-comment-or-uncomment-region
-                           (car newpos)
-                           (cdr newpos)
-                           nil)))
-
-   ((and (eq type 'line)
-         (= end (point-max))
-         (or (= start end)
-             (/= (char-before end) ?\n))
-         (/= start (point-min))
-         (=  (char-before start) ?\n))
-    (evilnc-comment-or-uncomment-region (1- start) end))
-
-   ((eq type 'line)
-    ;; comment whole line, for now
-    (evilnc-comment-or-uncomment-region start
-                                         (save-excursion
-                                           (goto-char (1- end))
-                                           (line-end-position))))
-
-   (t
-    (when (and start end)
+  (let ((win-start (window-start))) ;; Save scroll position
+    (cond
+     ((eq type 'block)
       (let* ((newpos (evilnc-expand-to-whole-comment-or-line start end)))
-        (evilnc-comment-or-uncomment-region (car newpos) (cdr newpos))))))
+        (evil-apply-on-block #'evilnc-comment-or-uncomment-region
+                             (car newpos)
+                             (cdr newpos)
+                             nil)))
 
-  ;; place cursor on beginning of line
-  (if (and (called-interactively-p 'any) (eq type 'line))
-      (evil-first-non-blank)))
+     ((and (eq type 'line)
+           (= end (point-max))
+           (or (= start end)
+               (/= (char-before end) ?\n))
+           (/= start (point-min))
+           (=  (char-before start) ?\n))
+      (evilnc-comment-or-uncomment-region (1- start) end))
+
+     ((eq type 'line)
+      (evilnc-comment-or-uncomment-region start
+                                          (save-excursion
+                                            (goto-char (1- end))
+                                            (line-end-position))))
+
+     (t
+      (when (and start end)
+        (let* ((newpos (evilnc-expand-to-whole-comment-or-line start end)))
+          (evilnc-comment-or-uncomment-region (car newpos) (cdr newpos))))))
+
+    ;; Restore window scroll position
+    (set-window-start (selected-window) win-start)
+
+    ;; place cursor at beginning of line for line type
+    (if (and (called-interactively-p 'any) (eq type 'line))
+        (evil-first-non-blank))))
 
 (defun evilnc-comment-or-uncomment-region-then-action (start end commenter &optional action)
   "Comment/uncomment between START and END using COMMENTER, then take ACTION."
